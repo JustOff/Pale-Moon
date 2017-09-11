@@ -936,31 +936,7 @@ ProcessXCTO(nsHttpResponseHead* aResponseHead, nsILoadInfo* aLoadInfo)
 nsresult
 nsHttpChannel::CallOnStartRequest()
 {
-    nsresult rv = ProcessXCTO(mResponseHead, mLoadInfo);
-    if (NS_FAILED(rv)) {
-        LOG(("XCTO: nosniff verification failed.\n"));
-        // log a warning to the console that loading the resrouce was
-        // blocked due to MIME type mismatch.
-        nsAutoCString spec;
-        mURI->GetSpec(spec);
-        NS_ConvertUTF8toUTF16 specUTF16(spec);
-        const char16_t* params[] = { specUTF16.get() };
-        nsCOMPtr<nsIDocument> doc;
-        if (mLoadInfo) {
-            nsCOMPtr<nsIDOMDocument> domDoc;
-            mLoadInfo->GetLoadingDocument(getter_AddRefs(domDoc));
-            if (domDoc) {
-                doc = do_QueryInterface(domDoc);
-            }
-        }
-        nsContentUtils::ReportToConsole(nsIScriptError::errorFlag,
-                                        NS_LITERAL_CSTRING("XCTO"),
-                                        doc,
-                                        nsContentUtils::eSECURITY_PROPERTIES,
-                                        "MimeTypeMismatch",
-                                        params, ArrayLength(params));
-        return rv;
-    }
+    nsresult rv;
 
     mTracingEnabled = false;
 
@@ -1408,7 +1384,33 @@ nsHttpChannel::ProcessAltService()
 nsresult
 nsHttpChannel::ProcessResponse()
 {
-    nsresult rv;
+    nsresult rv = ProcessXCTO(mResponseHead, mLoadInfo);
+    if (NS_FAILED(rv)) {
+        LOG(("XCTO: nosniff verification failed.\n"));
+        // log a warning to the console that loading the resrouce was
+        // blocked due to MIME type mismatch.
+        nsAutoCString spec;
+        mURI->GetSpec(spec);
+        NS_ConvertUTF8toUTF16 specUTF16(spec);
+        const char16_t* params[] = { specUTF16.get() };
+        nsCOMPtr<nsIDocument> doc;
+        if (mLoadInfo) {
+            nsCOMPtr<nsIDOMDocument> domDoc;
+            mLoadInfo->GetLoadingDocument(getter_AddRefs(domDoc));
+            if (domDoc) {
+                doc = do_QueryInterface(domDoc);
+            }
+        }
+        nsContentUtils::ReportToConsole(nsIScriptError::errorFlag,
+                                        NS_LITERAL_CSTRING("XCTO"),
+                                        doc,
+                                        nsContentUtils::eSECURITY_PROPERTIES,
+                                        "MimeTypeMismatch",
+                                        params, ArrayLength(params));
+        Cancel(rv);
+        return CallOnStartRequest();
+    }
+
     uint32_t httpStatus = mResponseHead->Status();
 
     // Gather data on whether the transaction and page (if this is
